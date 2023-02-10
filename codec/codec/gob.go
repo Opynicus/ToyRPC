@@ -4,7 +4,7 @@
  * @LastEditTime: 2023-02-09 16:30:18
  * @LastEditors: Opynicus
  * @Description:
- * @FilePath: \tinyRPC\codec\gob.go
+ * @FilePath: \ToyRPC\codec\gob.go
  * 可以输入预定的版权声明、个性签名、空行等
  */
 package codec

@@ -1,17 +1,18 @@
 /*
  * @Author: Opynicus
- * @Date: 2023-02-09 14:32:55
- * @LastEditTime: 2023-02-10 10:07:00
+ * @Date: 2023-02-10 10:06:44
+ * @LastEditTime: 2023-02-10 16:58:25
  * @LastEditors: Opynicus
  * @Description:
  * @FilePath: \ToyRPC\test\test_codec.go
  * 可以输入预定的版权声明、个性签名、空行等
  */
-package main
+package test
 
 import (
 	"ToyRPC/codec/codec"
 	"ToyRPC/codec/server"
+	"ToyRPC/utils"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -21,20 +22,10 @@ import (
 
 const rpc_cnt = 10
 
-func startServer(addr chan string) {
-	// pick a free port
-	link, err := net.Listen("tcp", ":0")
-	if err != nil {
-		log.Fatal("network error:", err)
-	}
-	log.Println("start rpc server on", link.Addr())
-	addr <- link.Addr().String()
-	server.Accept(link)
-}
-
-func main() {
+func TestCodec() {
+	utils := utils.Utils{}
 	addr := make(chan string)
-	go startServer(addr)
+	go utils.StartServer(addr)
 
 	// in fact, following code is like a simple server client
 	connect, _ := net.Dial("tcp", <-addr)
@@ -42,7 +33,6 @@ func main() {
 	defer connect.Close()
 
 	time.Sleep(time.Second)
-	// send options
 	json.NewEncoder(connect).Encode(server.DefaultOption)
 	cc := codec.NewGobCodec(connect)
 	// send request & receive response

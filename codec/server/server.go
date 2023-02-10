@@ -14,7 +14,7 @@ import (
 const MagicNumber = 0x3bef5c
 
 type Option struct {
-	MagicNumber int    // MagicNumber marks this's a TinyRPC request
+	MagicNumber int    // MagicNumber marks this's a ToyRPC request
 	CodecType   string // client may choose different Codec to encode body
 }
 
@@ -119,7 +119,7 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 func (server *Server) handleRequest(cc codec.Codec, req *request, send_mtx *sync.Mutex, wg *sync.WaitGroup) {
 	defer wg.Done()
 	log.Println(req.h, req.argv.Elem())
-	req.replyv = reflect.ValueOf(fmt.Sprintf("TinyRPC respones %d", req.h.Seq))
+	req.replyv = reflect.ValueOf(fmt.Sprintf("ToyRPC respones %d", req.h.Seq))
 	server.sendResponse(cc, req.h, req.replyv.Interface(), send_mtx)
 }
 
