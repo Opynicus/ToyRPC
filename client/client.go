@@ -2,7 +2,7 @@ package client
 
 import (
 	"ToyRPC/codec"
-	"ToyRPC/server"
+	server "ToyRPC/service"
 	"encoding/json"
 	"errors"
 	"fmt"

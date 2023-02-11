@@ -1,7 +1,7 @@
 /*
  * @Author: Opynicus
  * @Date: 2023-02-10 10:06:44
- * @LastEditTime: 2023-02-11 16:06:06
+ * @LastEditTime: 2023-02-11 16:18:58
  * @LastEditors: Opynicus
  * @Description:
  * @FilePath: \ToyRPC\test\test_codec.go
@@ -11,7 +11,7 @@ package test
 
 import (
 	"ToyRPC/codec"
-	"ToyRPC/server"
+	"ToyRPC/service"
 	"ToyRPC/utils"
 	"encoding/json"
 	"fmt"
