@@ -1,13 +1,13 @@
 /*
  * @Author: Opynicus
  * @Date: 2023-02-11 15:00:28
- * @LastEditTime: 2023-02-11 15:49:36
+ * @LastEditTime: 2023-02-11 17:18:57
  * @LastEditors: Opynicus
  * @Description:
  * @FilePath: \ToyRPC\service\service.go
  * 可以输入预定的版权声明、个性签名、空行等
  */
-package service
+package server
 
 import (
 	"go/ast"
@@ -31,11 +31,12 @@ func NewService(rcvr interface{}) *Service {
 	if !ast.IsExported(s.name) {
 		log.Fatalf("rpc server: %s is not a valid service name", s.name)
 	}
-	s.method = suitableMethods(s.typ)
+	s.method = buildMethods4Service(s.typ)
 	return s
 }
 
-func suitableMethods(typ reflect.Type) map[string]*MethodType {
+//
+func buildMethods4Service(typ reflect.Type) map[string]*MethodType {
 	methods := make(map[string]*MethodType)
 	for m := 0; m < typ.NumMethod(); m++ {
 		method := typ.Method(m)
