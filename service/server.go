@@ -1,27 +1,41 @@
+/*
+ * @Author: Opynicus
+ * @Date: 2023-02-10 10:05:21
+ * @LastEditTime: 2023-02-12 15:17:42
+ * @LastEditors: Opynicus
+ * @Description:
+ * @FilePath: \ToyRPC\service\server.go
+ * 可以输入预定的版权声明、个性签名、空行等
+ */
 package server
 
 import (
 	"ToyRPC/codec"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log"
 	"net"
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 )
 
 const MagicNumber = 0x3bef5c
 
 type Option struct {
-	MagicNumber int    // MagicNumber marks this's a ToyRPC request
-	CodecType   string // client may choose different Codec to encode body
+	MagicNumber   int           // MagicNumber marks this's a ToyRPC request
+	CodecType     string        // client may choose different Codec to encode body
+	ConnTimeOut   time.Duration // connect timeout
+	HandleTimeOut time.Duration // handle timeout
 }
 
 var DefaultOption = &Option{
 	MagicNumber: MagicNumber,
 	CodecType:   codec.GobType,
+	ConnTimeOut: time.Second * 10,
 }
 
 // Server represents an RPC Server.
@@ -55,13 +69,13 @@ func (server *Server) serverConnect(connect io.ReadWriteCloser) {
 		log.Printf("rpc server: invalid codec type %s", opt.CodecType)
 		return
 	}
-	server.serveCodec(f(connect))
+	server.serveCodec(f(connect), &opt)
 }
 
 // invalidRequest is a placeholder for response argv when error occurs
 var invalidRequest = struct{}{}
 
-func (server *Server) serveCodec(cc codec.Codec) {
+func (server *Server) serveCodec(cc codec.Codec, opt *Option) {
 	send_mtx := new(sync.Mutex) // make sure to send a complete response
 	wg := new(sync.WaitGroup)   // wait until all request are handled
 	for {
@@ -75,7 +89,7 @@ func (server *Server) serveCodec(cc codec.Codec) {
 			continue
 		}
 		wg.Add(1)
-		go server.handleRequest(cc, req, send_mtx, wg)
+		go server.handleRequest(cc, req, send_mtx, wg, opt.HandleTimeOut)
 	}
 	wg.Wait()
 	cc.Close()
@@ -141,16 +155,39 @@ func (server *Server) sendResponse(cc codec.Codec, h *codec.Header, body interfa
 	}
 }
 
-func (server *Server) handleRequest(cc codec.Codec, req *request, send_mtx *sync.Mutex, wg *sync.WaitGroup) {
+func (server *Server) handleRequest(cc codec.Codec, req *request, send_mtx *sync.Mutex, wg *sync.WaitGroup, timeout time.Duration) {
 	defer wg.Done()
 	//log.Println(req.h, req.argv.Elem())
-	if err := req.svc.call(req.mtype, req.argv, req.replyv); err != nil {
-		req.h.Error = err.Error()
-		server.sendResponse(cc, req.h, invalidRequest, send_mtx)
+	called := make(chan struct{})
+	sent := make(chan struct{})
+	go func() {
+		err := req.svc.call(req.mtype, req.argv, req.replyv)
+		called <- struct{}{}
+		if err != nil {
+			req.h.Error = err.Error()
+			server.sendResponse(cc, req.h, invalidRequest, send_mtx)
+			sent <- struct{}{}
+			return
+		}
+		//req.replyv = reflect.ValueOf(fmt.Sprintf("ToyRPC respones %d", req.h.Seq))
+		server.sendResponse(cc, req.h, req.replyv.Interface(), send_mtx)
+		sent <- struct{}{}
+	}()
+
+	if timeout == 0 {
+		<-called
+		<-sent
 		return
 	}
-	//req.replyv = reflect.ValueOf(fmt.Sprintf("ToyRPC respones %d", req.h.Seq))
-	server.sendResponse(cc, req.h, req.replyv.Interface(), send_mtx)
+
+	select {
+	case <-time.After(timeout):
+		req.h.Error = fmt.Sprintf("rpc server: request handle timeout: expect within %s", timeout)
+		server.sendResponse(cc, req.h, invalidRequest, send_mtx)
+	case <-called:
+		<-sent
+	}
+
 }
 
 // Accept accepts connections on the listener and serves requests

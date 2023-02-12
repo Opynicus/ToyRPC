@@ -3,6 +3,7 @@ package client
 import (
 	"ToyRPC/codec"
 	server "ToyRPC/service"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 )
 
 // Client represents an RPC Client.
@@ -23,6 +25,11 @@ type Client struct {
 	pending  map[uint64]*Call // store calls that are waiting for server response
 	closing  bool             // user has called Close
 	shutdown bool             // server has told us to stop
+}
+
+type clientResult struct {
+	client *Client
+	err    error
 }
 
 func (client *Client) Close() error {
@@ -188,14 +195,48 @@ func Dial(network, address string, opts ...*server.Option) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	connect, err := net.Dial(network, address)
+	// connect, err := net.Dial(network, address)
+	connect, err := net.DialTimeout(network, address, opt.ConnTimeOut)
 	if err != nil {
 		return nil, err
 	}
-	return newClient(connect, opt)
+	defer func() {
+		if err != nil {
+			_ = connect.Close()
+		}
+	}()
+	// execute newClient in a goroutine
+	ch := make(chan clientResult)
+	go func() {
+		c, err := newClient(connect, opt)
+		ch <- clientResult{c, err}
+	}()
+	// no timeout
+	if opt.ConnTimeOut == 0 {
+		result := <-ch
+		return result.client, result.err
+	}
+
+	select {
+	case <-time.After(opt.ConnTimeOut): // time.After() means the time after the timeout, not the time before the timeout
+		return nil, errors.New("rpc client: connect timeout: expect within " + opt.ConnTimeOut.String())
+	case result := <-ch: // if the connection is established before the timeout, the result will be returned
+		return result.client, result.err
+	}
 }
 
-func (client *Client) Call(serviceMethod string, args interface{}, reply interface{}) error {
+func (client *Client) CallWithoutTimeout(serviceMethod string, args interface{}, reply interface{}) error {
 	call := <-client.Go(serviceMethod, args, reply, make(chan *Call, 1)).Done
 	return call.Err
+}
+
+func (client *Client) Call(ctx context.Context, serviceMethod string, args interface{}, reply interface{}) error {
+	call := client.Go(serviceMethod, args, reply, make(chan *Call, 1))
+	select {
+	case <-ctx.Done(): // if the context is canceled, the call will be removed from the pending map
+		client.remove(call.Seq)
+		return errors.New("rpc client: call failed: " + ctx.Err().Error())
+	case call := <-call.Done: // if the call is done, the result will be returned
+		return call.Err
+	}
 }

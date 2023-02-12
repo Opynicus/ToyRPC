@@ -3,6 +3,7 @@ package test
 import (
 	"ToyRPC/client"
 	server "ToyRPC/service"
+	"context"
 	"log"
 	"net"
 	"sync"
@@ -39,7 +40,6 @@ func TestService() {
 	go startServer(addr)
 	client, _ := client.Dial("tcp", <-addr)
 	defer client.Close()
-
 	time.Sleep(time.Second)
 	// send request & receive response
 	var wg sync.WaitGroup
@@ -49,7 +49,7 @@ func TestService() {
 			defer wg.Done()
 			args := &Args{Num1: i, Num2: i * i}
 			var reply int
-			if err := client.Call("Calc.Sum", args, &reply); err != nil {
+			if err := client.Call(context.Background(), "Calc.Sum", args, &reply); err != nil {
 				log.Fatal("call Calc.Sum error:", err)
 			}
 			log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)

@@ -12,6 +12,7 @@ package test
 import (
 	"ToyRPC/client"
 	"ToyRPC/utils"
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -39,7 +40,7 @@ func TestClient() {
 			defer wg.Done()
 			args := fmt.Sprintf("ToyRPC req %d", i)
 			var reply string
-			if err := client.Call("RPC", args, &reply); err != nil {
+			if err := client.Call(context.Background(), "RPC", args, &reply); err != nil {
 				log.Fatal("call ToyRPC error:", err)
 			}
 			log.Println("reply:", reply)
