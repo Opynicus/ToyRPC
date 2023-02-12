@@ -43,13 +43,14 @@ func TestService() {
 	time.Sleep(time.Second)
 	// send request & receive response
 	var wg sync.WaitGroup
+	ctx, _ := context.WithTimeout(context.Background(), time.Second)
 	for i := 0; i < rpc_cnt; i++ {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			args := &Args{Num1: i, Num2: i * i}
 			var reply int
-			if err := client.Call(context.Background(), "Calc.Sum", args, &reply); err != nil {
+			if err := client.Call(ctx, "Calc.Sum", args, &reply); err != nil {
 				log.Fatal("call Calc.Sum error:", err)
 			}
 			log.Printf("%d + %d = %d", args.Num1, args.Num2, reply)
