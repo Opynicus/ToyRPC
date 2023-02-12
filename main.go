@@ -1,7 +1,7 @@
 /*
  * @Author: Opynicus
  * @Date: 2023-02-10 16:20:39
- * @LastEditTime: 2023-02-11 16:47:21
+ * @LastEditTime: 2023-02-12 20:14:48
  * @LastEditors: Opynicus
  * @Description:
  * @FilePath: \ToyRPC\main.go
@@ -14,5 +14,6 @@ import "ToyRPC/test"
 func main() {
 	//test.TestCodec()
 	//test.TestClient()
-	test.TestService()
+	// test.TestService()
+	test.TestProtocol()
 }

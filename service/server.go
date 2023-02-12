@@ -1,7 +1,7 @@
 /*
  * @Author: Opynicus
  * @Date: 2023-02-10 10:05:21
- * @LastEditTime: 2023-02-12 15:17:42
+ * @LastEditTime: 2023-02-12 17:53:11
  * @LastEditors: Opynicus
  * @Description:
  * @FilePath: \ToyRPC\service\server.go
@@ -17,13 +17,19 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
 	"reflect"
 	"strings"
 	"sync"
 	"time"
 )
 
-const MagicNumber = 0x3bef5c
+const (
+	MagicNumber      = 0x3bef5c
+	connected        = "200 Connected to ToyRPC"
+	defaultRPCPath   = "/_toyrpc_" // default RPC path
+	defaultDebugPath = "/debug/toyrpc"
+)
 
 type Option struct {
 	MagicNumber   int           // MagicNumber marks this's a ToyRPC request
@@ -93,6 +99,38 @@ func (server *Server) serveCodec(cc codec.Codec, opt *Option) {
 	}
 	wg.Wait()
 	cc.Close()
+}
+
+func (server *Server) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	var err error
+	defer func() {
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+	}()
+	if req.Method != "CONNECT" {
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		io.WriteString(w, "405 must CONNECT\n")
+		return
+	}
+	conn, _, err := w.(http.Hijacker).Hijack()
+	if err != nil {
+		log.Print("rpc hijacking ", req.RemoteAddr, ": ", err.Error())
+		return
+	}
+	io.WriteString(conn, "HTTP/1.0 "+connected+"\n\n")
+	server.serverConnect(conn)
+}
+
+func (server *Server) HandleHTTP() {
+	http.Handle(defaultRPCPath, server)
+	log.Println("rpc server debug path:", defaultDebugPath)
+}
+
+// HandleHTTP is a convenient approach for default server to register HTTP handlers
+func HandleHTTP() {
+	DefaultServer.HandleHTTP()
 }
 
 // request stores all information of a call

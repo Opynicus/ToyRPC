@@ -3,6 +3,7 @@ package client
 import (
 	"ToyRPC/codec"
 	server "ToyRPC/service"
+	"bufio"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,8 +11,17 @@ import (
 	"io"
 	"log"
 	"net"
+	"net/http"
+	"strings"
 	"sync"
 	"time"
+)
+
+const (
+	MagicNumber      = 0x3bef5c
+	connected        = "200 Connected to ToyRPC"
+	defaultRPCPath   = "/_toyrpc_" // default RPC path
+	defaultDebugPath = "/debug/toyrpc"
 )
 
 // Client represents an RPC Client.
@@ -238,5 +248,71 @@ func (client *Client) Call(ctx context.Context, serviceMethod string, args inter
 		return errors.New("rpc client: call failed: " + ctx.Err().Error())
 	case call := <-call.Done: // if the call is done, the result will be returned
 		return call.Err
+	}
+}
+
+func NewHTTPClient(conn net.Conn, opt *server.Option) (*Client, error) {
+	io.WriteString(conn, fmt.Sprintf("CONNECT %s HTTP/1.0\n\n", defaultRPCPath))
+	resp, err := http.ReadResponse(bufio.NewReader(conn), &http.Request{Method: "CONNECT"})
+	if err != nil && resp.Status == connected {
+		return newClient(conn, opt)
+	}
+	if err != nil {
+		err = errors.New("unexpected HTTP response: " + resp.Status)
+	}
+	return nil, err
+}
+
+func DialHTTP(network, address string, opts ...*server.Option) (*Client, error) {
+	opt, err := parseOptions(opts...)
+	if err != nil {
+		return nil, err
+	}
+	// connect, err := net.Dial(network, address)
+	connect, err := net.DialTimeout(network, address, opt.ConnTimeOut)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		if err != nil {
+			_ = connect.Close()
+		}
+	}()
+	// execute newClient in a goroutine
+	ch := make(chan clientResult)
+	go func() {
+		c, err := NewHTTPClient(connect, opt)
+		ch <- clientResult{c, err}
+	}()
+	// no timeout
+	if opt.ConnTimeOut == 0 {
+		result := <-ch
+		return result.client, result.err
+	}
+
+	select {
+	case <-time.After(opt.ConnTimeOut): // time.After() means the time after the timeout, not the time before the timeout
+		return nil, errors.New("rpc client: connect timeout: expect within " + opt.ConnTimeOut.String())
+	case result := <-ch: // if the connection is established before the timeout, the result will be returned
+		return result.client, result.err
+	}
+}
+
+// XDial calls different functions to connect to a RPC server
+// according the first parameter rpcAddr.
+// rpcAddr is a general format (protocol@addr) to represent a rpc server
+// eg, http@10.0.0.1:7001, tcp@10.0.0.1:9999, unix@/tmp/geerpc.sock
+func XDial(rpcAddr string, opts ...*server.Option) (*Client, error) {
+	parts := strings.Split(rpcAddr, "@")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("rpc client err: wrong format '%s', expect protocol@addr", rpcAddr)
+	}
+	protocol, addr := parts[0], parts[1]
+	switch protocol {
+	case "http":
+		return DialHTTP("tcp", addr, opts...)
+	default:
+		// tcp, unix or other transport protocol
+		return Dial(protocol, addr, opts...)
 	}
 }
