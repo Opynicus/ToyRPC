@@ -1,7 +1,7 @@
 /*
  * @Author: Opynicus
  * @Date: 2023-02-11 15:00:28
- * @LastEditTime: 2023-02-11 17:18:57
+ * @LastEditTime: 2023-02-12 22:13:29
  * @LastEditors: Opynicus
  * @Description:
  * @FilePath: \ToyRPC\service\service.go
