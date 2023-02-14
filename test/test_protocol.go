@@ -21,7 +21,7 @@ import (
 func TestProtocol() {
 	if runtime.GOOS == "linux" {
 		ch := make(chan struct{})
-		addr := "/tmp/geerpc.sock"
+		addr := "/tmp/toyrpc.sock"
 		go func() {
 			_ = os.Remove(addr)
 			l, err := net.Listen("unix", addr)
